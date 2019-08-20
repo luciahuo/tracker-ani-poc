@@ -1,0 +1,39 @@
+{"author": "Super Linux Penguin",
+ "commitdate": "2019-07-29 15:34:59",
+ "datemodified": "2019-08-08 16:14:01.369000",
+ "description": "Luke Skywalker has vanished. In his absence, the sinister FIRST ORDER has risen from the ashes of the Empire and will not rest until Skywalker, the last Jedi, has been destroyed. With the support of the REPUBLIC, General Leia Organa leads a brave RESISTANCE. She is desperate to find her brother Luke and gain his help in restoring peace and justice to the galaxy.Leia has sent her most daring pilot on a secret mission to Jakku, where an old ally has discovered a clue to Luke’s whereabouts",
+ "distro": [{
+            "bugId": 418,
+            "buglink": "https://bugzilla.distro.com/show_bug.cgi?id=12345",
+            "name": "ubuntu",
+            "release": "18.04",
+            "state": "ACCEPTED - distro"
+        },
+        {
+            "bugId": 370,
+            "buglink": "https://bugzilla.distro.com/show_bug.cgi?id=12345",
+            "name": "rhel",
+            "release": "8",
+            "state": "ACCEPTED - distro"
+        },
+        {
+            "bugId": 184,
+            "buglink": "https://bugzilla.distro.com/show_bug.cgi?id=12345",
+            "name": "sle",
+            "release": "12-SP4-AZURE",
+            "state": "PENDING - distro"
+        }
+    ],
+    "email": "torvalds@linux-foundation.org",
+    "modhistory": [
+        "fields: subject priority were modified on 2019-08-08 16:12:57.062641"
+    ],
+    "parent_commits": [],
+    "priority": 3,
+    "related_commits": [],
+    "subject": "Fixing The Erroneous Patch",
+    "uhash": "ad5e427e0f6b702e52c11d1f7b2b7be3bac7de99",
+    "upstream": true,
+    "upstreamlink": "https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=12345"
+}
+

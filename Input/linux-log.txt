@@ -1,0 +1,512 @@
+commit bed38c3e2dca01b358a62b5e73b46e875742fd75
+Merge: 76260774575c 3a855b7ac7d5
+Author: Linus Torvalds <torvalds@linux-foundation.org>
+Date:   Wed Jul 24 09:58:39 2019 -0700
+
+    Merge tag 'powerpc-5.3-2' of git://git.kernel.org/pub/scm/linux/kernel/git/powerpc/linux
+    
+    Pull powerpc fixes from Michael Ellerman:
+     "An assortment of non-regression fixes that have accumulated since the
+      start of the merge window.
+    
+       - A fix for a user triggerable oops on machines where transactional
+         memory is disabled, eg. Power9 bare metal, Power8 with TM disabled
+         on the command line, or all Power7 or earlier machines.
+    
+       - Three fixes for handling of PMU and power saving registers when
+         running nested KVM on Power9.
+    
+       - Two fixes for bugs found while stress testing the XIVE interrupt
+         controller code, also on Power9.
+    
+       - A fix to allow guests to boot under Qemu/KVM on Power9 using the
+         the Hash MMU with >= 1TB of memory.
+    
+       - Two fixes for bugs in the recent DMA cleanup, one of which could
+         lead to checkstops.
+    
+       - And finally three fixes for the PAPR SCM nvdimm driver.
+    
+      Thanks to: Alexey Kardashevskiy, Andrea Arcangeli, Cédric Le Goater,
+      Christoph Hellwig, David Gibson, Gautham R. Shenoy, Michael Neuling,
+      Oliver O'Halloran, Satheesh Rajendran, Shawn Anastasio, Suraj Jitindar
+      Singh, Vaibhav Jain"
+    
+    * tag 'powerpc-5.3-2' of git://git.kernel.org/pub/scm/linux/kernel/git/powerpc/linux:
+      powerpc/papr_scm: Force a scm-unbind if initial scm-bind fails
+      powerpc/papr_scm: Update drc_pmem_unbind() to use H_SCM_UNBIND_ALL
+      powerpc/pseries: Update SCM hcall op-codes in hvcall.h
+      powerpc/tm: Fix oops on sigreturn on systems without TM
+      powerpc/dma: Fix invalid DMA mmap behavior
+      KVM: PPC: Book3S HV: XIVE: fix rollback when kvmppc_xive_create fails
+      powerpc/xive: Fix loop exit-condition in xive_find_target_in_mask()
+      powerpc: fix off by one in max_zone_pfn initialization for ZONE_DMA
+      KVM: PPC: Book3S HV: Save and restore guest visible PSSCR bits on pseries
+      powerpc/pmu: Set pmcregs_in_use in paca when running as LPAR
+      KVM: PPC: Book3S HV: Always save guest pmu for guest capable of nesting
+      powerpc/mm: Limit rma_size to 1TB when running without HV mode
+
+commit 76260774575c0ff7464bf5a4beabc9852180799f
+Merge: c2626876c24f 266e85a5ec91
+Author: Linus Torvalds <torvalds@linux-foundation.org>
+Date:   Wed Jul 24 09:46:13 2019 -0700
+
+    Merge tag 'for-linus' of git://git.kernel.org/pub/scm/virt/kvm/kvm
+    
+    Pull KVM fixes from Paolo Bonzini:
+     "Bugfixes, a pvspinlock optimization, and documentation moving"
+    
+    * tag 'for-linus' of git://git.kernel.org/pub/scm/virt/kvm/kvm:
+      KVM: X86: Boost queue head vCPU to mitigate lock waiter preemption
+      Documentation: move Documentation/virtual to Documentation/virt
+      KVM: nVMX: Set cached_vmcs12 and cached_shadow_vmcs12 NULL after free
+      KVM: X86: Dynamically allocate user_fpu
+      KVM: X86: Fix fpu state crash in kvm guest
+      Revert "kvm: x86: Use task structs fpu field for user"
+      KVM: nVMX: Clear pending KVM_REQ_GET_VMCS12_PAGES when leaving nested
+
+commit c2626876c24fe1f326381e3f1d48301bfc627d8e
+Merge: ad5e427e0f6b 06532750010e
+Author: Linus Torvalds <torvalds@linux-foundation.org>
+Date:   Wed Jul 24 09:28:55 2019 -0700
+
+    Merge tag 'dma-mapping-5.3-2' of git://git.infradead.org/users/hch/dma-mapping
+    
+    Pull dma-mapping regression fix from Christoph Hellwig:
+     "Ensure that dma_addressing_limited doesn't crash on devices without a
+      dma mask (Eric Auger)"
+    
+    * tag 'dma-mapping-5.3-2' of git://git.infradead.org/users/hch/dma-mapping:
+      dma-mapping: use dma_get_mask in dma_addressing_limited
+
+commit 266e85a5ec9100dcd9ae03601453bbc96fefee5d
+Author: Wanpeng Li <wanpengli@tencent.com>
+Date:   Wed Jul 24 17:43:13 2019 +0800
+
+    KVM: X86: Boost queue head vCPU to mitigate lock waiter preemption
+    
+    Commit 11752adb (locking/pvqspinlock: Implement hybrid PV queued/unfair locks)
+    introduces hybrid PV queued/unfair locks
+     - queued mode (no starvation)
+     - unfair mode (good performance on not heavily contended lock)
+    The lock waiter goes into the unfair mode especially in VMs with over-commit
+    vCPUs since increaing over-commitment increase the likehood that the queue
+    head vCPU may have been preempted and not actively spinning.
+    
+    However, reschedule queue head vCPU timely to acquire the lock still can get
+    better performance than just depending on lock stealing in over-subscribe
+    scenario.
+    
+    Testing on 80 HT 2 socket Xeon Skylake server, with 80 vCPUs VM 80GB RAM:
+    ebizzy -M
+                 vanilla     boosting    improved
+     1VM          23520        25040         6%
+     2VM           8000        13600        70%
+     3VM           3100         5400        74%
+    
+    The lock holder vCPU yields to the queue head vCPU when unlock, to boost queue
+    head vCPU which is involuntary preemption or the one which is voluntary halt
+    due to fail to acquire the lock after a short spin in the guest.
+    
+    Cc: Waiman Long <longman@redhat.com>
+    Cc: Peter Zijlstra <peterz@infradead.org>
+    Cc: Paolo Bonzini <pbonzini@redhat.com>
+    Cc: Radim Krčmář <rkrcmar@redhat.com>
+    Signed-off-by: Wanpeng Li <wanpengli@tencent.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+
+commit 2f5947dfcaecb99f2dd559156eecbeb7b95e4c02
+Author: Christoph Hellwig <hch@lst.de>
+Date:   Wed Jul 24 09:24:49 2019 +0200
+
+    Documentation: move Documentation/virtual to Documentation/virt
+    
+    Renaming docs seems to be en vogue at the moment, so fix on of the
+    grossly misnamed directories.  We usually never use "virtual" as
+    a shortcut for virtualization in the kernel, but always virt,
+    as seen in the virt/ top-level directory.  Fix up the documentation
+    to match that.
+    
+    Fixes: ed16648eb5b8 ("Move kvm, uml, and lguest subdirectories under a common "virtual" directory, I.E:")
+    Signed-off-by: Christoph Hellwig <hch@lst.de>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+
+commit ad5e427e0f6b702e52c11d1f7b2b7be3bac7de82
+Merge: 7b5cf701ea9c 69245c97560b
+Author: Linus Torvalds <torvalds@linux-foundation.org>
+Date:   Tue Jul 23 15:34:59 2019 -0700
+
+    Merge branch 'parisc-5.3-3' of git://git.kernel.org/pub/scm/linux/kernel/git/deller/parisc-linux
+    
+    Pull parisc fixes from Helge Deller:
+    
+     - Fix build issues when kprobes are enabled
+    
+     - Speed up ITLB/DTLB cache flushes when running on machines with
+       combined TLBs
+    
+    * 'parisc-5.3-3' of git://git.kernel.org/pub/scm/linux/kernel/git/deller/parisc-linux:
+      parisc: Flush ITLB in flush_tlb_all_local() only on split TLB machines
+      parisc: add kprobe_fault_handler()
+
+commit 06532750010e06dd4b6d69983773677df7fc5291
+Author: Eric Auger <eric.auger@redhat.com>
+Date:   Mon Jul 22 18:51:49 2019 +0200
+
+    dma-mapping: use dma_get_mask in dma_addressing_limited
+    
+    We currently have cases where the dma_addressing_limited() gets
+    called with dma_mask unset. This causes a NULL pointer dereference.
+    
+    Use dma_get_mask() accessor to prevent the crash.
+    
+    Fixes: b866455423e0 ("dma-mapping: add a dma_addressing_limited helper")
+    Signed-off-by: Eric Auger <eric.auger@redhat.com>
+    Acked-by: Michael S. Tsirkin <mst@redhat.com>
+    Signed-off-by: Christoph Hellwig <hch@lst.de>
+
+commit 7b5cf701ea9c395c792e2a7e3b7caf4c68b87721
+Merge: 44b912cd0b55 b8d3349803ba
+Author: Linus Torvalds <torvalds@linux-foundation.org>
+Date:   Mon Jul 22 09:30:34 2019 -0700
+
+    Merge branch 'sched-urgent-for-linus' of git://git.kernel.org/pub/scm/linux/kernel/git/tip/tip
+    
+    Pull preemption Kconfig fix from Thomas Gleixner:
+     "The PREEMPT_RT stub config renamed PREEMPT to PREEMPT_LL and defined
+      PREEMPT outside of the menu and made it selectable by both PREEMPT_LL
+      and PREEMPT_RT.
+    
+      Stupid me missed that 114 defconfigs select CONFIG_PREEMPT which
+      obviously can't work anymore. oldconfig builds are affected as well,
+      but it's more obvious as the user gets asked. [old]defconfig silently
+      fixes it up and selects PREEMPT_NONE.
+    
+      Unbreak it by undoing the rename and adding a intermediate config
+      symbol which is selected by both PREEMPT and PREEMPT_RT. That requires
+      to chase down a few #ifdefs, but it's better than tweaking 114
+      defconfigs and annoying users"
+    
+    * 'sched-urgent-for-linus' of git://git.kernel.org/pub/scm/linux/kernel/git/tip/tip:
+      sched/rt, Kconfig: Unbreak def/oldconfig with CONFIG_PREEMPT=y
+
+commit 44b912cd0b55777796c5ae8ae857bd1d5ff83ed5
+Merge: 21c730d73471 b191d6491be6
+Author: Linus Torvalds <torvalds@linux-foundation.org>
+Date:   Mon Jul 22 09:14:19 2019 -0700
+
+    Merge tag 'for-linus-20190722' of git://git.kernel.org/pub/scm/linux/kernel/git/brauner/linux
+    
+    Pull pidfd polling fix from Christian Brauner:
+     "A fix for pidfd polling. It ensures that the task's exit state is
+      visible to all waiters"
+    
+    * tag 'for-linus-20190722' of git://git.kernel.org/pub/scm/linux/kernel/git/brauner/linux:
+      pidfd: fix a poll race when setting exit_state
+
+commit 21c730d7347126886c40453feb973161f4ae3fb3
+Merge: c92f0380673b 373c3b80e459
+Author: Linus Torvalds <torvalds@linux-foundation.org>
+Date:   Mon Jul 22 09:08:38 2019 -0700
+
+    Merge tag 'for-5.3-rc1-tag' of git://git.kernel.org/pub/scm/linux/kernel/git/kdave/linux
+    
+    Pull btrfs fixes from David Sterba:
+    
+     - fixes for leaks caused by recently merged patches
+    
+     - one build fix
+    
+     - a fix to prevent mixing of incompatible features
+    
+    * tag 'for-5.3-rc1-tag' of git://git.kernel.org/pub/scm/linux/kernel/git/kdave/linux:
+      btrfs: don't leak extent_map in btrfs_get_io_geometry()
+      btrfs: free checksum hash on in close_ctree
+      btrfs: Fix build error while LIBCRC32C is module
+      btrfs: inode: Don't compress if NODATASUM or NODATACOW set
+
+commit b8d3349803ba34afda429e87a837fd95a99b2349
+Author: Thomas Gleixner <tglx@linutronix.de>
+Date:   Mon Jul 22 17:59:19 2019 +0200
+
+    sched/rt, Kconfig: Unbreak def/oldconfig with CONFIG_PREEMPT=y
+    
+    The merge of the CONFIG_PREEMPT_RT stub renamed CONFIG_PREEMPT to
+    CONFIG_PREEMPT_LL which causes all defconfigs which have CONFIG_PREEMPT=y
+    set to fall back to CONFIG_PREEMPT_NONE because CONFIG_PREEMPT depends on
+    the preemption mode choice wich defaults to NONE. This also affects
+    oldconfig builds.
+    
+    So rather than changing 114 defconfig files and being an annoyance to
+    users, revert the rename and select a new config symbol PREEMPTION. That
+    keeps everything working smoothly and the revelant ifdef's are going to be
+    fixed up step by step.
+    
+    Reported-by: Mark Rutland <mark.rutland@arm.com>
+    Fixes: a50a3f4b6a31 ("sched/rt, Kconfig: Introduce CONFIG_PREEMPT_RT")
+    Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+
+commit c92f0380673bd295c9ac73030a17c16b9df3e702
+Merge: 83768245a3b1 22be8233b34f
+Author: Linus Torvalds <torvalds@linux-foundation.org>
+Date:   Mon Jul 22 09:01:47 2019 -0700
+
+    Merge tag 'media/v5.3-2' of git://git.kernel.org/pub/scm/linux/kernel/git/mchehab/linux-media
+    
+    Pull media fixes from Mauro Carvalho Chehab:
+     "For two regressions in media core:
+    
+       - v4l2-subdev: fix regression in check_pad()
+    
+       - videodev2.h: change V4L2_PIX_FMT_BGRA444 define: fourcc was already
+         in use"
+    
+    * tag 'media/v5.3-2' of git://git.kernel.org/pub/scm/linux/kernel/git/mchehab/linux-media:
+      media: videodev2.h: change V4L2_PIX_FMT_BGRA444 define: fourcc was already in use
+      media: v4l2-subdev: fix regression in check_pad()
+
+commit 83768245a3b158b96d33012b22ab01d193afb2da
+Merge: 5f9e832c1370 b617158dc096
+Author: Linus Torvalds <torvalds@linux-foundation.org>
+Date:   Mon Jul 22 08:49:22 2019 -0700
+
+    Merge git://git.kernel.org/pub/scm/linux/kernel/git/davem/net
+    
+    Pull networking fixes from David Miller:
+    
+     1) Several netfilter fixes including a nfnetlink deadlock fix from
+        Florian Westphal and fix for dropping VRF packets from Miaohe Lin.
+    
+     2) Flow offload fixes from Pablo Neira Ayuso including a fix to restore
+        proper block sharing.
+    
+     3) Fix r8169 PHY init from Thomas Voegtle.
+    
+     4) Fix memory leak in mac80211, from Lorenzo Bianconi.
+    
+     5) Missing NULL check on object allocation in cxgb4, from Navid
+        Emamdoost.
+    
+     6) Fix scaling of RX power in sfp phy driver, from Andrew Lunn.
+    
+     7) Check that there is actually an ip header to access in skb->data in
+        VRF, from Peter Kosyh.
+    
+     8) Remove spurious rcu unlock in hv_netvsc, from Haiyang Zhang.
+    
+     9) One more tweak the the TCP fragmentation memory limit changes, to be
+        less harmful to applications setting small SO_SNDBUF values. From
+        Eric Dumazet.
+    
+    * git://git.kernel.org/pub/scm/linux/kernel/git/davem/net: (40 commits)
+      tcp: be more careful in tcp_fragment()
+      hv_netvsc: Fix extra rcu_read_unlock in netvsc_recv_callback()
+      vrf: make sure skb->data contains ip header to make routing
+      connector: remove redundant input callback from cn_dev
+      qed: Prefer pcie_capability_read_word()
+      igc: Prefer pcie_capability_read_word()
+      cxgb4: Prefer pcie_capability_read_word()
+      be2net: Synchronize be_update_queues with dev_watchdog
+      bnx2x: Prevent load reordering in tx completion processing
+      net: phy: sfp: hwmon: Fix scaling of RX power
+      net: sched: verify that q!=NULL before setting q->flags
+      chelsio: Fix a typo in a function name
+      allocate_flower_entry: should check for null deref
+      net: hns3: typo in the name of a constant
+      kbuild: add net/netfilter/nf_tables_offload.h to header-test blacklist.
+      tipc: Fix a typo
+      mac80211: don't warn about CW params when not using them
+      mac80211: fix possible memory leak in ieee80211_assign_beacon
+      nl80211: fix NL80211_HE_MAX_CAPABILITY_LEN
+      nl80211: fix VENDOR_CMD_RAW_DATA
+      ...
+
+commit b191d6491be67cef2b3fa83015561caca1394ab9
+Author: Suren Baghdasaryan <surenb@google.com>
+Date:   Wed Jul 17 13:21:00 2019 -0400
+
+    pidfd: fix a poll race when setting exit_state
+    
+    There is a race between reading task->exit_state in pidfd_poll and
+    writing it after do_notify_parent calls do_notify_pidfd. Expected
+    sequence of events is:
+    
+    CPU 0                            CPU 1
+    ------------------------------------------------
+    exit_notify
+      do_notify_parent
+        do_notify_pidfd
+      tsk->exit_state = EXIT_DEAD
+                                      pidfd_poll
+                                         if (tsk->exit_state)
+    
+    However nothing prevents the following sequence:
+    
+    CPU 0                            CPU 1
+    ------------------------------------------------
+    exit_notify
+      do_notify_parent
+        do_notify_pidfd
+                                       pidfd_poll
+                                          if (tsk->exit_state)
+      tsk->exit_state = EXIT_DEAD
+    
+    This causes a polling task to wait forever, since poll blocks because
+    exit_state is 0 and the waiting task is not notified again. A stress
+    test continuously doing pidfd poll and process exits uncovered this bug.
+    
+    To fix it, we make sure that the task's exit_state is always set before
+    calling do_notify_pidfd.
+    
+    Fixes: b53b0b9d9a6 ("pidfd: add polling support")
+    Cc: kernel-team@android.com
+    Cc: Oleg Nesterov <oleg@redhat.com>
+    Signed-off-by: Suren Baghdasaryan <surenb@google.com>
+    Signed-off-by: Joel Fernandes (Google) <joel@joelfernandes.org>
+    Link: https://lore.kernel.org/r/20190717172100.261204-1-joel@joelfernandes.org
+    [christian@brauner.io: adapt commit message and drop unneeded changes from wait_task_zombie]
+    Signed-off-by: Christian Brauner <christian@brauner.io>
+
+commit 3a855b7ac7d5021674aa3e1cc9d3bfd6b604e9c0
+Author: Vaibhav Jain <vaibhav@linux.ibm.com>
+Date:   Sat Jun 29 21:36:10 2019 +0530
+
+    powerpc/papr_scm: Force a scm-unbind if initial scm-bind fails
+    
+    In some cases initial bind of scm memory for an lpar can fail if
+    previously it wasn't released using a scm-unbind hcall. This situation
+    can arise due to panic of the previous kernel or forced lpar
+    fadump. In such cases the H_SCM_BIND_MEM return a H_OVERLAP error.
+    
+    To mitigate such cases the patch updates papr_scm_probe() to force a
+    call to drc_pmem_unbind() in case the initial bind of scm memory fails
+    with EBUSY error. In case scm-bind operation again fails after the
+    forced scm-unbind then we follow the existing error path. We also
+    update drc_pmem_bind() to handle the H_OVERLAP error returned by phyp
+    and indicate it as a EBUSY error back to the caller.
+    
+    Suggested-by: "Oliver O'Halloran" <oohall@gmail.com>
+    Signed-off-by: Vaibhav Jain <vaibhav@linux.ibm.com>
+    Reviewed-by: Oliver O'Halloran <oohall@gmail.com>
+    Signed-off-by: Michael Ellerman <mpe@ellerman.id.au>
+    Link: https://lore.kernel.org/r/20190629160610.23402-4-vaibhav@linux.ibm.com
+
+commit 0d7fc080ba139a2a639d3732616403ccddfa2d36
+Author: Vaibhav Jain <vaibhav@linux.ibm.com>
+Date:   Sat Jun 29 21:36:09 2019 +0530
+
+    powerpc/papr_scm: Update drc_pmem_unbind() to use H_SCM_UNBIND_ALL
+    
+    The new hcall named H_SCM_UNBIND_ALL has been introduce that can
+    unbind all or specific scm memory assigned to an lpar. This is
+    more efficient than using H_SCM_UNBIND_MEM as currently we don't
+    support partial unbind of scm memory.
+    
+    Hence this patch proposes following changes to drc_pmem_unbind():
+    
+        * Update drc_pmem_unbind() to replace hcall H_SCM_UNBIND_MEM to
+          H_SCM_UNBIND_ALL.
+    
+        * Update drc_pmem_unbind() to handles cases when PHYP asks the guest
+          kernel to wait for specific amount of time before retrying the
+          hcall via the 'LONG_BUSY' return value.
+    
+        * Ensure appropriate error code is returned back from the function
+          in case of an error.
+    
+    Reviewed-by: Oliver O'Halloran <oohall@gmail.com>
+    Signed-off-by: Vaibhav Jain <vaibhav@linux.ibm.com>
+    Signed-off-by: Michael Ellerman <mpe@ellerman.id.au>
+    Link: https://lore.kernel.org/r/20190629160610.23402-3-vaibhav@linux.ibm.com
+
+commit 6d140e7569db89a1b596c1c2d1c2293d5c594432
+Author: Vaibhav Jain <vaibhav@linux.ibm.com>
+Date:   Sat Jun 29 21:36:08 2019 +0530
+
+    powerpc/pseries: Update SCM hcall op-codes in hvcall.h
+    
+    Update the hvcalls.h to include op-codes for new hcalls introduce to
+    manage SCM memory. Also update existing hcall definitions to reflect
+    current papr specification for SCM.
+    
+    The removed hcall op-codes H_SCM_MEM_QUERY, H_SCM_BLOCK_CLEAR were
+    transient proposals and there support was never implemented by
+    Power-VM nor they were used anywhere in Linux kernel. Hence we don't
+    expect anyone to be impacted by this change.
+    
+    Signed-off-by: Vaibhav Jain <vaibhav@linux.ibm.com>
+    Signed-off-by: Michael Ellerman <mpe@ellerman.id.au>
+    Link: https://lore.kernel.org/r/20190629160610.23402-2-vaibhav@linux.ibm.com
+
+commit c6bf2ae931adbd3e10967e12142856439a211813
+Author: Jan Kiszka <jan.kiszka@siemens.com>
+Date:   Sun Jul 21 16:01:36 2019 +0200
+
+    KVM: nVMX: Set cached_vmcs12 and cached_shadow_vmcs12 NULL after free
+    
+    Shall help finding use-after-free bugs earlier.
+    
+    Suggested-by: Liran Alon <liran.alon@oracle.com>
+    Signed-off-by: Jan Kiszka <jan.kiszka@siemens.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+
+commit d9a710e5fc4941944d565b013414e9fdc66242b5
+Author: Wanpeng Li <wanpengli@tencent.com>
+Date:   Mon Jul 22 12:26:21 2019 +0800
+
+    KVM: X86: Dynamically allocate user_fpu
+    
+    After reverting commit 240c35a3783a (kvm: x86: Use task structs fpu field
+    for user), struct kvm_vcpu is 19456 bytes on my server, PAGE_ALLOC_COSTLY_ORDER(3)
+    is the order at which allocations are deemed costly to service. In serveless
+    scenario, one host can service hundreds/thoudands firecracker/kata-container
+    instances, howerver, new instance will fail to launch after memory is too
+    fragmented to allocate kvm_vcpu struct on host, this was observed in some
+    cloud provider product environments.
+    
+    This patch dynamically allocates user_fpu, kvm_vcpu is 15168 bytes now on my
+    Skylake server.
+    
+    Cc: Paolo Bonzini <pbonzini@redhat.com>
+    Cc: Radim Krčmář <rkrcmar@redhat.com>
+    Signed-off-by: Wanpeng Li <wanpengli@tencent.com>
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+
+commit e751732486eb3f159089a64d1901992b1357e7cc
+Author: Wanpeng Li <wanpengli@tencent.com>
+Date:   Mon Jul 22 12:26:20 2019 +0800
+
+    KVM: X86: Fix fpu state crash in kvm guest
+    
+    The idea before commit 240c35a37 (which has just been reverted)
+    was that we have the following FPU states:
+    
+                   userspace (QEMU)             guest
+    ---------------------------------------------------------------------------
+                   processor                    vcpu->arch.guest_fpu
+    >>> KVM_RUN: kvm_load_guest_fpu
+                   vcpu->arch.user_fpu          processor
+    >>> preempt out
+                   vcpu->arch.user_fpu          current->thread.fpu
+    >>> preempt in
+                   vcpu->arch.user_fpu          processor
+    >>> back to userspace
+    >>> kvm_put_guest_fpu
+                   processor                    vcpu->arch.guest_fpu
+    ---------------------------------------------------------------------------
+    
+    With the new lazy model we want to get the state back to the processor
+    when schedule in from current->thread.fpu.
+    
+    Reported-by: Thomas Lambertz <mail@thomaslambertz.de>
+    Reported-by: anthony <antdev66@gmail.com>
+    Tested-by: anthony <antdev66@gmail.com>
+    Cc: Paolo Bonzini <pbonzini@redhat.com>
+    Cc: Radim Krčmář <rkrcmar@redhat.com>
+    Cc: Thomas Lambertz <mail@thomaslambertz.de>
+    Cc: anthony <antdev66@gmail.com>
+    Cc: stable@vger.kernel.org
+    Fixes: 5f409e20b (x86/fpu: Defer FPU state load until return to userspace)
+    Signed-off-by: Wanpeng Li <wanpengli@tencent.com>
+    [Add a comment in front of the warning. - Paolo]
+    Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
